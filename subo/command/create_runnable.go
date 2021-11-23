@@ -73,8 +73,10 @@ func CreateRunnableCmd() *cobra.Command {
 			util.LogStart(fmt.Sprintf("creating runnable %s", name))
 
 			path, err := util.Mkdir(bctx.Cwd, name)
-			if err != nil {
-				return errors.Wrap(err, "🚫 failed to Mkdir")
+			if err != nil && !os.IsNotExist(err) {
+				return errors.Wrap(err, "🚫 runnable output dir already exis")
+			} else if err != nil {
+				return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to Mkdir")
 			}
 
 			runnable, err := writeDotRunnable(bctx.Cwd, name, lang, namespace)
