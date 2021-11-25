@@ -16,18 +16,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	langFlag            = "lang"
-	dirFlag             = "dir"
-	namespaceFlag       = "namespace"
-	branchFlag          = "branch"
-	versionFlag         = "version"
-	repoFlag            = "repo"
-	environmentFlag     = "environment"
-	updateTemplatesFlag = "update-templates"
-	headlessFlag        = "headless"
-)
-
 // validLangs are the available languages
 var validLangs = map[string]bool{
 	"rust":           true,
@@ -45,18 +33,18 @@ var langAliases = map[string]string{
 	"gr":         "grain",
 }
 
-// Error for build command CreateRunnableCmd failures
+// CreateRunnableError wraps errors for CreateRunnableCmd() failures
 type CreateRunnableError struct {
-	Path string // The ouput directory for build command CreateRunnableCmd.
-	Err  error  // The original error.
+	Path  string // The ouput directory for build command CreateRunnableCmd().
+	error        // The original error.
 }
 
-// Error acts as a cleanup function for CreateRunnableError
-func (err CreateRunnableError) Error() string {
-	if cleanup_err := os.RemoveAll(err.Path); cleanup_err != nil {
-		fmt.Println("🚫 failed to clean up runnable outputs")
+// NewCreateRunnableError cleans up and returns CreateRunnableError for CreateRunnableCmd() failures
+func NewCreateRunnableError(path string, err error) CreateRunnableError {
+	if cleanupErr := os.RemoveAll(path); cleanupErr != nil {
+		err = errors.Wrap(err, "failed to clean up runnable outputs")
 	}
-	return err.Err.Error()
+	return CreateRunnableError{Path: path, error: err}
 }
 
 // CreateRunnableCmd returns the build command
@@ -95,18 +83,18 @@ func CreateRunnableCmd() *cobra.Command {
 
 			runnable, err := writeDotRunnable(bctx.Cwd, name, lang, namespace)
 			if err != nil {
-				return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to writeDotRunnable")
+				return errors.Wrap(NewCreateRunnableError(path, err), "🚫 failed to writeDotRunnable")
 			}
 
 			templatesPath, err := template.TemplateFullPath(repo, branch)
 			if err != nil {
-				return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "failed to TemplateDir")
+				return errors.Wrap(NewCreateRunnableError(path, err), "failed to TemplateDir")
 			}
 
 			if update, _ := cmd.Flags().GetBool(updateTemplatesFlag); update {
 				templatesPath, err = template.UpdateTemplates(repo, branch)
 				if err != nil {
-					return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to UpdateTemplates")
+					return errors.Wrap(NewCreateRunnableError(path, err), "🚫 failed to UpdateTemplates")
 				}
 			}
 
@@ -115,14 +103,14 @@ func CreateRunnableCmd() *cobra.Command {
 				if err == template.ErrTemplateMissing {
 					templatesPath, err = template.UpdateTemplates(repo, branch)
 					if err != nil {
-						return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to UpdateTemplates")
+						return errors.Wrap(NewCreateRunnableError(path, err), "🚫 failed to UpdateTemplates")
 					}
 
 					if err := template.ExecRunnableTmpl(bctx.Cwd, name, templatesPath, runnable); err != nil {
-						return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to ExecTmplDir")
+						return errors.Wrap(NewCreateRunnableError(path, err), "🚫 failed to ExecTmplDir")
 					}
 				} else {
-					return errors.Wrap(CreateRunnableError{Path: path, Err: err}, "🚫 failed to ExecTmplDir")
+					return errors.Wrap(NewCreateRunnableError(path, err), "🚫 failed to ExecTmplDir")
 				}
 			}
 
